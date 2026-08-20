@@ -1,4 +1,7 @@
-import 'dotenv/config'; // Top par import karein
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first'); // Force IPv4 over IPv6
+
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
