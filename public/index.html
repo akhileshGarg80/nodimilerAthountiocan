@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Auth System - Signed Link</title>
+  <title>Auth System</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
@@ -11,15 +11,11 @@
     h2 { font-size: 22px; margin-bottom: 15px; color: #333; text-align: center; }
     h3 { font-size: 18px; margin-bottom: 15px; color: #444; }
     input { width: 100%; padding: 12px; margin: 8px 0 16px 0; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; outline: none; }
-    input:focus { border-color: #007bff; }
-    button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-    button:hover { background-color: #0056b3; }
+    button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; }
+    button:disabled { background-color: #a0c4ff; cursor: not-allowed; }
     .logout-btn { background-color: #dc3545; }
-    .logout-btn:hover { background-color: #bd2130; }
     p { font-size: 14px; color: #666; margin-top: 12px; text-align: center; }
     a { color: #007bff; text-decoration: none; font-weight: 600; }
-    a:hover { text-decoration: underline; }
-    .box { display: block; }
     .hidden { display: none !important; }
     #message { padding: 10px; margin-bottom: 15px; border-radius: 6px; font-size: 14px; text-align: center; display: none; }
     .msg-success { background-color: #d4edda; color: #155724; display: block !important; }
@@ -37,7 +33,7 @@
       <h3>Register</h3>
       <input type="email" id="regEmail" placeholder="Enter your email" required>
       <input type="password" id="regPassword" placeholder="Enter password" required>
-      <button onclick="handleRegister()">Send Verification Link</button>
+      <button id="regBtn" onclick="handleRegister()">Send Verification Link</button>
       <p>Already have an account? <a href="#" onclick="showBox('loginBox')">Login</a></p>
     </div>
 
@@ -46,7 +42,7 @@
       <h3>Login</h3>
       <input type="email" id="loginEmail" placeholder="Enter email" required>
       <input type="password" id="loginPassword" placeholder="Enter password" required>
-      <button onclick="handleLogin()">Login</button>
+      <button id="loginBtn" onclick="handleLogin()">Login</button>
       <p><a href="#" onclick="showBox('forgotBox')">Forgot Password?</a></p>
       <p>Need an account? <a href="#" onclick="showBox('registerBox')">Register</a></p>
     </div>
@@ -55,7 +51,7 @@
     <div id="forgotBox" class="box hidden">
       <h3>Forgot Password</h3>
       <input type="email" id="forgotEmail" placeholder="Enter registered email" required>
-      <button onclick="handleForgotPassword()">Send Reset Link</button>
+      <button id="forgotBtn" onclick="handleForgotPassword()">Send Reset Link</button>
       <p><a href="#" onclick="showBox('loginBox')">Back to Login</a></p>
     </div>
 
@@ -63,12 +59,12 @@
     <div id="resetBox" class="box hidden">
       <h3>Set New Password</h3>
       <input type="password" id="newPassword" placeholder="Enter new password" required>
-      <button onclick="handleResetPassword()">Reset & Auto Login</button>
+      <button id="resetBtn" onclick="handleResetPassword()">Reset & Auto Login</button>
     </div>
 
     <!-- Profile Box -->
     <div id="profileBox" class="box hidden">
-      <h3>Userbn Profile</h3>
+      <h3>User Profile</h3>
       <p style="text-align: left; margin-bottom: 20px;"><strong>Email:</strong> <span id="profileEmail"></span></p>
       <button onclick="handleLogout()" class="logout-btn">Logout</button>
     </div>
@@ -98,6 +94,18 @@
       msgDiv.className = '';
     }
 
+    function setLoading(btnId, isLoading) {
+      const btn = document.getElementById(btnId);
+      if (isLoading) {
+        btn.disabled = true;
+        btn.dataset.originalText = btn.innerText;
+        btn.innerText = 'Please wait (Server starting)...';
+      } else {
+        btn.disabled = false;
+        btn.innerText = btn.dataset.originalText || 'Submit';
+      }
+    }
+
     function saveTokenAndShowProfile(token, email) {
       localStorage.setItem('token', token);
       document.getElementById('profileEmail').innerText = email;
@@ -109,13 +117,21 @@
       const password = document.getElementById('regPassword').value;
       if (!email || !password) return setMessage('Please fill all fields', true);
 
-      const res = await fetch(`${API}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
+      setLoading('regBtn', true);
+      try {
+        const res = await fetch(`${API}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        setMessage(data.message, !res.ok);
+      } catch (err) {
+        console.error('Register Error:', err);
+        setMessage('Server network error. Please try again.', true);
+      } finally {
+        setLoading('regBtn', false);
+      }
     }
 
     async function handleLogin() {
@@ -123,41 +139,65 @@
       const password = document.getElementById('loginPassword').value;
       if (!email || !password) return setMessage('Please fill all fields', true);
 
-      const res = await fetch(`${API}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
+      setLoading('loginBtn', true);
+      try {
+        const res = await fetch(`${API}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        setMessage(data.message, !res.ok);
+        if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
+      } catch (err) {
+        console.error('Login Error:', err);
+        setMessage('Server network error. Please try again.', true);
+      } finally {
+        setLoading('loginBtn', false);
+      }
     }
 
     async function handleForgotPassword() {
       const email = document.getElementById('forgotEmail').value.trim();
       if (!email) return setMessage('Please enter email', true);
 
-      const res = await fetch(`${API}/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
+      setLoading('forgotBtn', true);
+      try {
+        const res = await fetch(`${API}/forgot-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        setMessage(data.message, !res.ok);
+      } catch (err) {
+        console.error('Forgot Password Error:', err);
+        setMessage('Server network error. Please try again.', true);
+      } finally {
+        setLoading('forgotBtn', false);
+      }
     }
 
     async function handleResetPassword() {
       const newPassword = document.getElementById('newPassword').value;
       if (!newPassword) return setMessage('Please enter new password', true);
 
-      const res = await fetch(`${API}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetTokenFromUrl, newPassword })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
+      setLoading('resetBtn', true);
+      try {
+        const res = await fetch(`${API}/reset-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: resetTokenFromUrl, newPassword })
+        });
+        const data = await res.json();
+        setMessage(data.message, !res.ok);
+        if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
+      } catch (err) {
+        console.error('Reset Password Error:', err);
+        setMessage('Server network error. Please try again.', true);
+      } finally {
+        setLoading('resetBtn', false);
+      }
     }
 
     function handleLogout() {
@@ -170,8 +210,8 @@
       const isVerified = urlParams.get('verified');
       const verifiedToken = urlParams.get('token');
       const email = urlParams.get('email');
+      const resetToken = urlParams.get('resetToken');
 
-      // 1. Email Verification Link Click Handling
       if (isVerified === 'true' && verifiedToken) {
         window.history.replaceState({}, document.title, "/");
         saveTokenAndShowProfile(verifiedToken, email);
@@ -179,28 +219,27 @@
         return;
       }
 
-      // 2. Reset Password Link Click Handling
-      if (window.location.hash.startsWith('#reset-password')) {
-        const hashParams = new URLSearchParams(window.location.hash.split('?')[1]);
-        resetTokenFromUrl = hashParams.get('token');
-        if (resetTokenFromUrl) {
-          showBox('resetBox');
-          return;
-        }
+      if (resetToken) {
+        resetTokenFromUrl = resetToken;
+        showBox('resetBox');
+        return;
       }
 
-      // 3. Auto Login Check via LocalStorage Token
       const token = localStorage.getItem('token');
       if (token) {
-        const res = await fetch(`${API}/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          document.getElementById('profileEmail').innerText = data.user.email;
-          showBox('profileBox');
-        } else {
-          localStorage.removeItem('token');
+        try {
+          const res = await fetch(`${API}/profile`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            document.getElementById('profileEmail').innerText = data.user.email;
+            showBox('profileBox');
+          } else {
+            localStorage.removeItem('token');
+            showBox('loginBox');
+          }
+        } catch (err) {
           showBox('loginBox');
         }
       } else {
