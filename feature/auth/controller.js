@@ -3,17 +3,19 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from './usermodel.js';
 
-const getTransporter = () => {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
-    }
-  });
-};
+// Nodemailer Transporter Config
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD
+  }
+});
 
-// 1. REGISTER (Verification Link Bhejna)
+// Helper: 6-digit OTP generate karna
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// 1. REGISTER
 export const register = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -24,61 +26,51 @@ export const register = async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const otp = generateOTP();
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min validity
 
     if (user && !user.isVerified) {
       user.password = hashedPassword;
+      user.otp = otp;
+      user.otpExpires = otpExpires;
     } else {
-      user = new User({ email, password: hashedPassword });
+      user = new User({ email, password: hashedPassword, otp, otpExpires });
     }
+
     await user.save();
 
-    // 15-minute validity wala signed verification token
-    const verificationToken = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '15m' }
-    );
-
-    const verificationLink = `${process.env.CLIENT_URL}/api/auth/verify-email?token=${verificationToken}`;
-
-    await getTransporter().sendMail({
+    await transporter.sendMail({
       from: process.env.GMAIL_USER,
       to: email,
-      subject: 'Verify Your Email Address',
-      html: `
-        <h3>Welcome!</h3>
-        <p>Please verify your email by clicking the link below (Valid for 15 mins):</p>
-        <a href="${verificationLink}" style="padding: 10px 15px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a>
-      `
+      subject: 'Registration OTP Code',
+      text: `Your Registration OTP is ${otp}. Valid for 10 minutes.`
     });
 
-    res.status(201).json({ message: 'Verification link sent to your email. Please check your inbox!' });
+    res.status(201).json({ message: 'OTP sent to your email. Please verify.' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// 2. VERIFY EMAIL VIA LINK (Auto Login & Redirect)
-export const verifyEmail = async (req, res) => {
+// 2. VERIFY REGISTRATION OTP (Auto Login)
+export const verifyOtp = async (req, res) => {
   try {
-    const { token } = req.query;
-    if (!token) return res.status(400).send('Verification token missing');
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-
-    if (!user) return res.status(404).send('User not found');
+    if (!user || user.otp !== otp || user.otpExpires < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
 
     user.isVerified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
     await user.save();
 
-    // Auto login ke liye access token
-    const loginToken = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    // Frontend par redirect karke auto-login kara do
-    res.redirect(`${process.env.CLIENT_URL}/?verified=true&token=${loginToken}&email=${user.email}`);
+    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ message: 'OTP Verified successfully!', token, user: { id: user._id, email: user.email } });
   } catch (err) {
-    res.status(400).send('Invalid or expired verification link.');
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -94,7 +86,7 @@ export const login = async (req, res) => {
     if (!isMatch) return res.status(400).json({ message: 'Invalid email or password' });
 
     if (!user.isVerified) {
-      return res.status(403).json({ message: 'Account not verified. Please check your email for the link.' });
+      return res.status(403).json({ message: 'Account not verified. Please complete registration.' });
     }
 
     const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -104,7 +96,7 @@ export const login = async (req, res) => {
   }
 };
 
-// 4. FORGOT PASSWORD (Send Reset Password Link)
+// 4. FORGOT PASSWORD (SEND OTP)
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -112,45 +104,44 @@ export const forgotPassword = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const resetToken = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '15m' });
-    const resetLink = `${process.env.CLIENT_URL}/#reset-password?token=${resetToken}`;
+    const otp = generateOTP();
+    user.otp = otp;
+    user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
 
-    await getTransporter().sendMail({
+    await transporter.sendMail({
       from: process.env.GMAIL_USER,
       to: email,
-      subject: 'Reset Your Password',
-      html: `
-        <h3>Password Reset Requested</h3>
-        <p>Click the link below to reset your password (Valid for 15 mins):</p>
-        <a href="${resetLink}" style="padding: 10px 15px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
-      `
+      subject: 'Password Reset OTP',
+      text: `Your Password Reset OTP is ${otp}. Valid for 10 minutes.`
     });
 
-    res.json({ message: 'Password reset link sent to your email.' });
+    res.json({ message: 'Password reset OTP sent to your email.' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// 5. RESET PASSWORD WITH LINK TOKEN (Auto Login)
+// 5. RESET PASSWORD WITH OTP (Auto Login)
 export const resetPassword = async (req, res) => {
   try {
-    const { token, newPassword } = req.body;
-    if (!token) return res.status(400).json({ message: 'Reset token missing' });
+    const { email, otp, newPassword } = req.body;
+    const user = await User.findOne({ email });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user || user.otp !== otp || user.otpExpires < new Date()) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
 
     user.password = await bcrypt.hash(newPassword, 10);
+    user.otp = undefined;
+    user.otpExpires = undefined;
     user.isVerified = true;
     await user.save();
 
-    const loginToken = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Password reset successful!', token: loginToken, user: { id: user._id, email: user.email } });
+    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.json({ message: 'Password reset successful!', token, user: { id: user._id, email: user.email } });
   } catch (err) {
-    res.status(400).json({ message: 'Invalid or expired token' });
+    res.status(500).json({ message: err.message });
   }
 };
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Auth System with Nodemailer & JWT</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 450px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+    body { font-family: Arial, sans-serif; max-width: 450px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; borderRadius: 8px; }
     input, button { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
     button { background-color: #007bff; color: white; border: none; cursor: pointer; }
     button:hover { background-color: #0056b3; }
@@ -25,7 +25,7 @@
     <input type="email" id="regEmail" placeholder="Email">
     <input type="password" id="regPassword" placeholder="Password">
     <button onclick="handleRegister()">Send Registration OTP</button>
-    <p>Already have an account? <a href="javascript:void(0)" onclick="showBox('loginBox')">Login</a></p>
+    <p>Already have an account? <a href="#" onclick="showBox('loginBox')">Login</a></p>
   </div>
 
   <!-- OTP Verification Box -->
@@ -41,8 +41,8 @@
     <input type="email" id="loginEmail" placeholder="Email">
     <input type="password" id="loginPassword" placeholder="Password">
     <button onclick="handleLogin()">Login</button>
-    <p><a href="javascript:void(0)" onclick="showBox('forgotBox')">Forgot Password?</a></p>
-    <p>Need an account? <a href="javascript:void(0)" onclick="showBox('registerBox')">Register</a></p>
+    <p><a href="#" onclick="showBox('forgotBox')">Forgot Password?</a></p>
+    <p>Need an account? <a href="#" onclick="showBox('registerBox')">Register</a></p>
   </div>
 
   <!-- Forgot Password Box -->
@@ -50,7 +50,7 @@
     <h3>Forgot Password</h3>
     <input type="email" id="forgotEmail" placeholder="Enter Email">
     <button onclick="handleForgotPassword()">Send OTP</button>
-    <p><a href="javascript:void(0)" onclick="showBox('loginBox')">Back to Login</a></p>
+    <p><a href="#" onclick="showBox('loginBox')">Back to Login</a></p>
   </div>
 
   <!-- Reset Password Box -->
