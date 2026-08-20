@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Firebase secrets
+serviceAccountKey.json
+firebase-adminsdk-*.json
+firebase-service-account.json
+src/config/secretKey.json
+
+# Firebase local files
+.firebase/
+.firebase-debug.log
+firebaserc
+
+# Logs
+*.log
+logs/
+
+# Build / output
+dist/
+build/
+coverage/
+
+# Cache
+.cache/
+.tmp/
+temp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+.nyc_output/
+
+# Vercel / deployment
+.vercel/
+
+# Local config
+*.local
