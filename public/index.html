@@ -1,185 +1,308 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
-  <meta charset="UTF-8">
-  <title>Auth System with Nodemailer & JWT</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 450px; margin: 40px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-    input, button { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
-    button { background-color: #007bff; color: white; border: none; cursor: pointer; }
-    button:hover { background-color: #0056b3; }
-    .box { margin-bottom: 20px; }
-    .hidden { display: none; }
-    .msg { color: green; font-weight: bold; }
-    .err { color: red; font-weight: bold; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Auth OTP Demo</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+  }
+  .card {
+    background: #1e293b;
+    padding: 32px;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  h2 { margin-top: 0; text-align: center; }
+  input {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 14px;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #6366f1;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  button:hover { background: #4f46e5; }
+  button:disabled { background: #475569; cursor: not-allowed; }
+  .msg { margin-top: 14px; text-align: center; font-size: 14px; min-height: 20px; }
+  .success { color: #4ade80; }
+  .error { color: #f87171; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #0f172a;
+    font-size: 13px;
+  }
+  .tab.active { background: #6366f1; }
+  .hidden { display: none; }
+  .profile-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #6366f1;
+    margin: 8px auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+  }
+  .profile-name { text-align: center; font-size: 18px; font-weight: 600; }
+  .profile-email { text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+</style>
 </head>
 <body>
+  <div class="card">
+    <h2>Auth Demo</h2>
+    <div class="tabs">
+      <div class="tab active" data-tab="register">Register</div>
+      <div class="tab" data-tab="login">Login</div>
+    </div>
 
-  <h2>Auth System</h2>
-  <div id="message"></div>
+    <!-- Register + OTP flow -->
+    <div id="register-panel">
+      <div id="register-step">
+        <input id="reg-name" placeholder="Naam" />
+        <input id="reg-email" placeholder="Email" type="email" />
+        <input id="reg-password" placeholder="Password" type="password" />
+        <button id="reg-btn">OTP Bhejein</button>
+      </div>
+      <div id="otp-step" class="hidden">
+        <input id="otp-code" placeholder="6-digit OTP" maxlength="6" />
+        <button id="otp-btn">Verify OTP</button>
+        <button id="resend-btn" style="background:#334155; margin-top:8px;">Resend OTP</button>
+      </div>
+    </div>
 
-  <!-- Register Box -->
-  <div id="registerBox" class="box">
-    <h3>Register</h3>
-    <input type="email" id="regEmail" placeholder="Email">
-    <input type="password" id="regPassword" placeholder="Password">
-    <button onclick="handleRegister()">Send Registration OTP</button>
-    <p>Already have an account? <a href="javascript:void(0)" onclick="showBox('loginBox')">Login</a></p>
+    <!-- Login -->
+    <div id="login-panel" class="hidden">
+      <input id="login-email" placeholder="Email" type="email" />
+      <input id="login-password" placeholder="Password" type="password" />
+      <button id="login-btn">Login</button>
+    </div>
+
+    <!-- Profile (shown after auto-login) -->
+    <div id="profile-panel" class="hidden">
+      <div class="profile-avatar" id="profile-avatar"></div>
+      <div class="profile-name" id="profile-name"></div>
+      <div class="profile-email" id="profile-email"></div>
+      <button id="logout-btn" style="background:#334155;">Logout</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
   </div>
 
-  <!-- OTP Verification Box -->
-  <div id="otpBox" class="box hidden">
-    <h3>Verify OTP</h3>
-    <input type="text" id="otpValue" placeholder="Enter 6-digit OTP">
-    <button onclick="handleVerifyOtp()">Verify & Auto Login</button>
-  </div>
+<script>
+const API = '/api/auth';
+let currentEmail = '';
 
-  <!-- Login Box -->
-  <div id="loginBox" class="box hidden">
-    <h3>Login</h3>
-    <input type="email" id="loginEmail" placeholder="Email">
-    <input type="password" id="loginPassword" placeholder="Password">
-    <button onclick="handleLogin()">Login</button>
-    <p><a href="javascript:void(0)" onclick="showBox('forgotBox')">Forgot Password?</a></p>
-    <p>Need an account? <a href="javascript:void(0)" onclick="showBox('registerBox')">Register</a></p>
-  </div>
+const msgEl = document.getElementById('msg');
+const showMsg = (text, isError = false) => {
+  msgEl.textContent = text;
+  msgEl.className = 'msg ' + (isError ? 'error' : 'success');
+};
 
-  <!-- Forgot Password Box -->
-  <div id="forgotBox" class="box hidden">
-    <h3>Forgot Password</h3>
-    <input type="email" id="forgotEmail" placeholder="Enter Email">
-    <button onclick="handleForgotPassword()">Send OTP</button>
-    <p><a href="javascript:void(0)" onclick="showBox('loginBox')">Back to Login</a></p>
-  </div>
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const isRegister = tab.dataset.tab === 'register';
+    document.getElementById('register-panel').classList.toggle('hidden', !isRegister);
+    document.getElementById('login-panel').classList.toggle('hidden', isRegister);
+    msgEl.textContent = '';
+  });
+});
 
-  <!-- Reset Password Box -->
-  <div id="resetBox" class="box hidden">
-    <h3>Reset Password</h3>
-    <input type="text" id="resetOtp" placeholder="Enter OTP">
-    <input type="password" id="newPassword" placeholder="New Password">
-    <button onclick="handleResetPassword()">Reset & Auto Login</button>
-  </div>
+const setLoading = (btn, loading) => {
+  btn.disabled = loading;
+  btn.dataset.original = btn.dataset.original || btn.textContent;
+  btn.textContent = loading ? '...' : btn.dataset.original;
+};
 
-  <!-- Profile Box -->
-  <div id="profileBox" class="box hidden">
-    <h3>User Profile</h3>
-    <p><strong>Email:</strong> <span id="profileEmail"></span></p>
-    <button onclick="handleLogout()" style="background-color: red;">Logout</button>
-  </div>
+// Register/Login/OTP panels chhupa ke profile dikhate hain (auto-login ke baad)
+const showProfile = (user) => {
+  document.querySelector('.tabs').classList.add('hidden');
+  document.getElementById('register-panel').classList.add('hidden');
+  document.getElementById('login-panel').classList.add('hidden');
+  document.getElementById('profile-panel').classList.remove('hidden');
 
-  <script>
-    const API = '/api/auth';
-    let currentEmail = '';
+  document.getElementById('profile-name').textContent = user.name;
+  document.getElementById('profile-email').textContent = user.email;
+  document.getElementById('profile-avatar').textContent = user.name
+    ? user.name.trim().charAt(0).toUpperCase()
+    : '?';
+};
 
-    function showBox(boxId) {
-      ['registerBox', 'otpBox', 'loginBox', 'forgotBox', 'resetBox', 'profileBox'].forEach(id => {
-        document.getElementById(id).classList.add('hidden');
-      });
-      document.getElementById(boxId).classList.remove('hidden');
-      document.getElementById('message').innerText = '';
-    }
+// Page load pe agar token already stored hai, seedha profile fetch karke dikhayein
+const tryAutoLogin = async () => {
+  const token = localStorage.getItem('token');
+  if (!token) return;
 
-    function setMessage(text, isError = false) {
-      const msgDiv = document.getElementById('message');
-      msgDiv.innerText = text;
-      msgDiv.className = isError ? 'err' : 'msg';
-    }
-
-    function saveTokenAndShowProfile(token, email) {
-      localStorage.setItem('token', token);
-      document.getElementById('profileEmail').innerText = email;
-      showBox('profileBox');
-    }
-
-    async function handleRegister() {
-      currentEmail = document.getElementById('regEmail').value;
-      const password = document.getElementById('regPassword').value;
-      const res = await fetch(`${API}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail, password })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) showBox('otpBox');
-    }
-
-    async function handleVerifyOtp() {
-      const otp = document.getElementById('otpValue').value;
-      const res = await fetch(`${API}/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail, otp })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
-    }
-
-    async function handleLogin() {
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
-      const res = await fetch(`${API}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
-    }
-
-    async function handleForgotPassword() {
-      currentEmail = document.getElementById('forgotEmail').value;
-      const res = await fetch(`${API}/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) showBox('resetBox');
-    }
-
-    async function handleResetPassword() {
-      const otp = document.getElementById('resetOtp').value;
-      const newPassword = document.getElementById('newPassword').value;
-      const res = await fetch(`${API}/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail, otp, newPassword })
-      });
-      const data = await res.json();
-      setMessage(data.message, !res.ok);
-      if (res.ok) saveTokenAndShowProfile(data.token, data.user.email);
-    }
-
-    function handleLogout() {
+  try {
+    const res = await fetch(`${API}/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      showProfile(data.user);
+    } else {
       localStorage.removeItem('token');
-      showBox('loginBox');
-      setMessage('Logged out successfully!');
     }
+  } catch (err) {
+    // network issue — login screen par hi rehne dete hain
+  }
+};
+tryAutoLogin();
 
-    // Auto load profile if token exists
-    window.onload = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        const res = await fetch(`${API}/profile`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          document.getElementById('profileEmail').innerText = data.user.email;
-          showBox('profileBox');
-        } else {
-          localStorage.removeItem('token');
-          showBox('loginBox');
-        }
-      } else {
-        showBox('loginBox');
-      }
-    };
-  </script>
+// Register -> send OTP
+document.getElementById('reg-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('reg-btn');
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+
+  if (!name || !email || !password) return showMsg('Sabhi fields bharein', true);
+
+  setLoading(btn, true);
+  try {
+    const res = await fetch(`${API}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      currentEmail = email;
+      document.getElementById('register-step').classList.add('hidden');
+      document.getElementById('otp-step').classList.remove('hidden');
+      showMsg('OTP aapke email par bhej diya gaya hai');
+    } else {
+      showMsg(data.message, true);
+    }
+  } catch (err) {
+    showMsg('Network error', true);
+  } finally {
+    setLoading(btn, false);
+  }
+});
+
+// Verify OTP
+document.getElementById('otp-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('otp-btn');
+  const otp = document.getElementById('otp-code').value.trim();
+  if (!otp) return showMsg('OTP daalein', true);
+
+  setLoading(btn, true);
+  try {
+    const res = await fetch(`${API}/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentEmail, otp }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('token', data.token);
+      showMsg('Verification successful! Login ho gaye.');
+      showProfile(data.user);
+    } else {
+      showMsg(data.message, true);
+    }
+  } catch (err) {
+    showMsg('Network error', true);
+  } finally {
+    setLoading(btn, false);
+  }
+});
+
+// Resend OTP
+document.getElementById('resend-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('resend-btn');
+  setLoading(btn, true);
+  try {
+    const res = await fetch(`${API}/resend-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentEmail }),
+    });
+    const data = await res.json();
+    showMsg(data.message, !data.success);
+  } catch (err) {
+    showMsg('Network error', true);
+  } finally {
+    setLoading(btn, false);
+  }
+});
+
+// Login
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('login-btn');
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) return showMsg('Email aur password bharein', true);
+
+  setLoading(btn, true);
+  try {
+    const res = await fetch(`${API}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      localStorage.setItem('token', data.token);
+      showMsg('Login successful!');
+      showProfile(data.user);
+    } else {
+      showMsg(data.message, true);
+    }
+  } catch (err) {
+    showMsg('Network error', true);
+  } finally {
+    setLoading(btn, false);
+  }
+});
+
+// Logout
+document.getElementById('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('token');
+  document.getElementById('profile-panel').classList.add('hidden');
+  document.querySelector('.tabs').classList.remove('hidden');
+  document.getElementById('login-panel').classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="login"]').classList.add('active');
+  msgEl.textContent = '';
+});
+</script>
 </body>
 </html>

@@ -1,14 +1,19 @@
 import express from 'express';
-import { register, verifyOtp, login, forgotPassword, resetPassword, getProfile } from './controller.js';
-import { authenticate } from './middleware.js';
+import {
+  registerUser,
+  verifyOtp,
+  resendOtp,
+  loginUser,
+  getMe,
+} from './controller.js';
+import { protect } from './middleware.js';
 
 const router = express.Router();
 
-router.post('/register', register);
+router.post('/register', registerUser);
 router.post('/verify-otp', verifyOtp);
-router.post('/login', login);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
-router.get('/profile', authenticate, getProfile);
+router.post('/resend-otp', resendOtp);
+router.post('/login', loginUser);
+router.get('/me', protect, getMe);
 
 export default router;
