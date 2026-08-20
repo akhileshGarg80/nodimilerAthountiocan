@@ -64,21 +64,6 @@
   }
   .tab.active { background: #6366f1; }
   .hidden { display: none; }
-  .profile-avatar {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    background: #6366f1;
-    margin: 8px auto 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    font-weight: 700;
-    color: white;
-  }
-  .profile-name { text-align: center; font-size: 18px; font-weight: 600; }
-  .profile-email { text-align: center; font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -111,14 +96,6 @@
       <button id="login-btn">Login</button>
     </div>
 
-    <!-- Profile (shown after auto-login) -->
-    <div id="profile-panel" class="hidden">
-      <div class="profile-avatar" id="profile-avatar"></div>
-      <div class="profile-name" id="profile-name"></div>
-      <div class="profile-email" id="profile-email"></div>
-      <button id="logout-btn" style="background:#334155;">Logout</button>
-    </div>
-
     <div id="msg" class="msg"></div>
   </div>
 
@@ -149,41 +126,6 @@ const setLoading = (btn, loading) => {
   btn.dataset.original = btn.dataset.original || btn.textContent;
   btn.textContent = loading ? '...' : btn.dataset.original;
 };
-
-// Register/Login/OTP panels chhupa ke profile dikhate hain (auto-login ke baad)
-const showProfile = (user) => {
-  document.querySelector('.tabs').classList.add('hidden');
-  document.getElementById('register-panel').classList.add('hidden');
-  document.getElementById('login-panel').classList.add('hidden');
-  document.getElementById('profile-panel').classList.remove('hidden');
-
-  document.getElementById('profile-name').textContent = user.name;
-  document.getElementById('profile-email').textContent = user.email;
-  document.getElementById('profile-avatar').textContent = user.name
-    ? user.name.trim().charAt(0).toUpperCase()
-    : '?';
-};
-
-// Page load pe agar token already stored hai, seedha profile fetch karke dikhayein
-const tryAutoLogin = async () => {
-  const token = localStorage.getItem('token');
-  if (!token) return;
-
-  try {
-    const res = await fetch(`${API}/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (data.success) {
-      showProfile(data.user);
-    } else {
-      localStorage.removeItem('token');
-    }
-  } catch (err) {
-    // network issue — login screen par hi rehne dete hain
-  }
-};
-tryAutoLogin();
 
 // Register -> send OTP
 document.getElementById('reg-btn').addEventListener('click', async () => {
@@ -234,7 +176,6 @@ document.getElementById('otp-btn').addEventListener('click', async () => {
     if (data.success) {
       localStorage.setItem('token', data.token);
       showMsg('Verification successful! Login ho gaye.');
-      showProfile(data.user);
     } else {
       showMsg(data.message, true);
     }
@@ -282,7 +223,6 @@ document.getElementById('login-btn').addEventListener('click', async () => {
     if (data.success) {
       localStorage.setItem('token', data.token);
       showMsg('Login successful!');
-      showProfile(data.user);
     } else {
       showMsg(data.message, true);
     }
@@ -291,17 +231,6 @@ document.getElementById('login-btn').addEventListener('click', async () => {
   } finally {
     setLoading(btn, false);
   }
-});
-
-// Logout
-document.getElementById('logout-btn').addEventListener('click', () => {
-  localStorage.removeItem('token');
-  document.getElementById('profile-panel').classList.add('hidden');
-  document.querySelector('.tabs').classList.remove('hidden');
-  document.getElementById('login-panel').classList.remove('hidden');
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.tab[data-tab="login"]').classList.add('active');
-  msgEl.textContent = '';
 });
 </script>
 </body>
